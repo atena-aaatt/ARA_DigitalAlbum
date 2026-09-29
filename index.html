@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Digital Album</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+    width: 100%; height: 100%;
+    margin: 0; padding: 0;
+    overflow: hidden;
+    background: #111;
+    user-select: none; -webkit-user-select: none;
+}
+.wrap {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    direction: ltr;
+}
+#book { width: 100vw; height: 100vh; }
+.page { background: #111; overflow: hidden; }
+.page img {
+    width: 100%; height: 100%;
+    display: block;
+    object-fit: fill;          /* اندازه دقیق عکس، بدون برش و بدون زوم */
+    pointer-events: none;
+    -webkit-user-drag: none;
+}
+.controls {
+    position: fixed; left: 50%; bottom: 12px;
+    transform: translateX(-50%);
+    z-index: 100; display: flex; gap: 10px; opacity: .7;
+}
+button {
+    border: none; width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(0,0,0,.55); color: #fff; font-size: 22px; cursor: pointer;
+}
+button:active { transform: scale(.92); }
+
+/* پنل موزیک طلایی */
+.music {
+    position: fixed; top: 12px; left: 12px;
+    z-index: 200;
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 14px 6px 6px;
+    border-radius: 999px;
+    direction: ltr;
+    background: rgba(20,16,8,.65);
+    border: 1px solid transparent;
+    background-image:
+        linear-gradient(rgba(20,16,8,.75), rgba(20,16,8,.75)),
+        linear-gradient(135deg, #f7e08a, #c9972b 45%, #fff1b8 60%, #b8791a);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 4px 18px rgba(0,0,0,.5), 0 0 12px rgba(212,164,55,.25);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.music button {
+    width: 34px; height: 34px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #f7e08a, #c9972b 55%, #a8721a);
+    color: #2a1c05;
+    box-shadow: 0 0 10px rgba(212,164,55,.5);
+}
+.music button svg { width: 16px; height: 16px; fill: currentColor; }
+.music .vol-ico { width: 16px; height: 16px; fill: #e6bd55; flex: none; }
+.music input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 80px; height: 4px; border-radius: 4px; outline: none;
+    background: linear-gradient(90deg, #e6bd55 var(--v,50%), rgba(255,255,255,.2) var(--v,50%));
+}
+.music input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff1b8, #c9972b);
+    box-shadow: 0 0 6px rgba(212,164,55,.8); cursor: pointer;
+}
+.music input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border: none; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff1b8, #c9972b);
+    box-shadow: 0 0 6px rgba(212,164,55,.8); cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div id="book"></div></div>
+
+<div class="controls">
+    <button id="prev" aria-label="قبلی">‹</button>
+    <button id="next" aria-label="بعدی">›</button>
+</div>
+
+<audio id="bgm" src="music.mp3" loop preload="auto"></audio>
+
+<div class="music" id="music">
+    <button id="playBtn" aria-label="پخش / توقف">
+        <svg id="icoPause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+        <svg id="icoPlay" viewBox="0 0 24 24" style="display:none"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <svg class="vol-ico" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+    <input id="vol" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="صدا">
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+<script>
+const TOTAL = 16;
+
+function src(n) {
+    return "pages/page-" + String(n).padStart(2, "0") + ".jpg";
+}
+
+/* اندازه واقعی عکس را می‌خوانیم تا صفحه دقیقاً هم‌نسبت عکس باشد */
+const probe = new Image();
+probe.onload  = () => start(probe.naturalWidth, probe.naturalHeight);
+probe.onerror = () => start(800, 1100);
+probe.src = src(1);
+
+function start(w, h) {
+    const book = document.getElementById("book");
+
+    for (let n = 1; n <= TOTAL; n++) {
+        const p = document.createElement("div");
+        p.className = "page";
+        if (n === 1 || n === TOTAL) p.setAttribute("data-density", "hard"); // جلد سخت
+        const im = new Image();
+        im.src = src(n);
+        im.draggable = false;
+        p.appendChild(im);
+        book.appendChild(p);
+    }
+
+    const flip = new St.PageFlip(book, {
+        width: w,
+        height: h,
+        size: "stretch",
+        minWidth: 200,  maxWidth: 3000,
+        minHeight: 280, maxHeight: 4000,
+        showCover: true,            // جلد اول و آخر تک‌صفحه؛ کتاب آخر بسته می‌شود
+        usePortrait: true,          // در گوشی عمودی یک صفحه‌ای
+        drawShadow: true,
+        maxShadowOpacity: 0.5,
+        flippingTime: 600,
+        useMouseEvents: true,       // کشیدن گوشه صفحه با انگشت/ماوس
+        mobileScrollSupport: false,
+        swipeDistance: 20,
+        clickEventForward: false
+    });
+
+    flip.loadFromHTML(book.querySelectorAll(".page"));
+
+    document.getElementById("next").onclick = () => flip.flipNext();
+    document.getElementById("prev").onclick = () => flip.flipPrev();
+
+    document.addEventListener("keydown", e => {
+        if (e.key === "ArrowRight") flip.flipNext();
+        if (e.key === "ArrowLeft")  flip.flipPrev();
+    });
+}
+
+/* ---------- موزیک ---------- */
+const bgm     = document.getElementById("bgm");
+const playBtn = document.getElementById("playBtn");
+const icoPlay = document.getElementById("icoPlay");
+const icoPause= document.getElementById("icoPause");
+const vol     = document.getElementById("vol");
+
+bgm.volume = parseFloat(vol.value);
+
+function setIcon() {
+    icoPlay.style.display  = bgm.paused ? "block" : "none";
+    icoPause.style.display = bgm.paused ? "none"  : "block";
+}
+
+function setVolFill() {
+    vol.style.setProperty("--v", (vol.value * 100) + "%");
+}
+
+function tryPlay() {
+    return bgm.play().then(setIcon).catch(() => setIcon());
+}
+
+/* مرورگرها پخش خودکار را قبل از اولین لمس مسدود می‌کنند؛
+   اول تلاش می‌کنیم، اگر نشد با اولین لمس/کلیک شروع می‌شود */
+tryPlay().then(() => {
+    if (bgm.paused) {
+        const kick = (e) => {
+            if (e.target && e.target.closest && e.target.closest("#music")) return;
+            tryPlay();
+            ["pointerdown", "touchend", "keydown"].forEach(ev =>
+                document.removeEventListener(ev, kick));
+        };
+        ["pointerdown", "touchend", "keydown"].forEach(ev =>
+            document.addEventListener(ev, kick, { once: false }));
+    }
+});
+
+playBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    if (bgm.paused) bgm.play(); else bgm.pause();
+    setIcon();
+});
+
+vol.addEventListener("input", () => {
+    bgm.volume = parseFloat(vol.value);
+    setVolFill();
+});
+
+bgm.addEventListener("play", setIcon);
+bgm.addEventListener("pause", setIcon);
+
+setVolFill();
+setIcon();
+</script>
+</body>
+</html>

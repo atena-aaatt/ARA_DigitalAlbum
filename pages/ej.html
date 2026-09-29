@@ -1,0 +1,107 @@
+const leftImg = document.getElementById('leftImg');
+const rightImg = document.getElementById('rightImg');
+const flip = document.getElementById('flip');
+const flipFront = document.getElementById('flipFront');
+const flipBack = document.getElementById('flipBack');
+const counter = document.getElementById('counter');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+
+function src(i) {{
+  return i >= 0 && i < pages.length ? 'pages/' + pages[i] : '';
+}}
+
+function render() {{
+  leftImg.src = src(spread);
+  rightImg.src = src(spread + 1);
+  counter.textContent = (spread + 1) + '–' + Math.min(spread + 2, pages.length) + ' / ' + pages.length;
+  prevBtn.disabled = spread <= 0;
+  nextBtn.disabled = spread >= pages.length - 2;
+}}
+
+function goNext() {{
+  if (busy || spread >= pages.length - 2) return;
+  busy = true;
+
+  // Right page turns over to the left; its back reveals the next page.
+  flip.className = 'flip-page next';
+  flip.style.display = 'block';
+  flipFront.src = src(spread + 1);
+  flipBack.src = src(spread + 2);
+
+  setTimeout(() => {{
+    spread += 1;
+    flip.style.display = 'none';
+    flip.className = '';
+    render();
+    busy = false;
+  }}, 740);
+}}
+
+function goPrev() {{
+  if (busy || spread <= 0) return;
+  busy = true;
+
+  // Left page turns back to the right; its back reveals the previous page.
+  flip.className = 'flip-page prev';
+  flip.style.display = 'block';
+  flipFront.src = src(spread);
+  flipBack.src = src(spread - 1);
+
+  setTimeout(() => {{
+    spread -= 1;
+    flip.style.display = 'none';
+    flip.className = '';
+    render();
+    busy = false;
+  }}, 740);
+}}
+
+nextBtn.onclick = goNext;
+prevBtn.onclick = goPrev;
+
+document.getElementById('bookWrap').addEventListener('click', e => {{
+  if (busy) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  if (x > rect.width / 2) goNext();
+  else goPrev();
+}});
+
+let startX = 0, startY = 0;
+const wrap = document.getElementById('bookWrap');
+wrap.addEventListener('touchstart', e => {{
+  startX = e.changedTouches[0].clientX;
+  startY = e.changedTouches[0].clientY;
+}}, {{passive:true}});
+wrap.addEventListener('touchend', e => {{
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
+  if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) {{
+    if (dx < 0) goNext(); else goPrev();
+  }}
+}}, {{passive:true}});
+
+document.addEventListener('keydown', e => {{
+  if (e.key === 'ArrowLeft') goNext();
+  if (e.key === 'ArrowRight') goPrev();
+}});
+
+render();
+</script>
+</body>
+</html>
+"""
+
+with open(os.path.join(base, "index.html"), "w", encoding="utf-8") as f:
+    f.write(book_html)
+
+zip_path = "/mnt/data/ara_gallery_book_spread.zip"
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    for root, dirs, files in os.walk(base):
+        for file in files:
+            full = os.path.join(root, file)
+            z.write(full, os.path.relpath(full, base))
+
+print(f"نسخه کتابی ساخته شد: {n} صفحه، نمایش دو صفحه‌ای")
+print(zip_path)
